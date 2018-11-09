@@ -1,1 +1,1 @@
-# MSSSQL
+# MS SQL
