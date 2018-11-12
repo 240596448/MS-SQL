@@ -1,7 +1,7 @@
 
 -- SQL Server 2008 R2 Diagnostic Information Queries
 -- Glenn Berry 
--- Last Modified: April 16, 2018
+-- Last Modified: November 11, 2018
 -- https://www.sqlserverperformance.wordpress.com/
 -- https://www.sqlskills.com/blogs/glenn/
 -- Twitter: GlennAlanBerry
@@ -252,7 +252,9 @@ WHERE node_state_desc <> N'ONLINE DAC' OPTION (RECOMPILE);
 SELECT cpu_count AS [Logical CPU Count], hyperthread_ratio AS [Hyperthread Ratio],
 cpu_count/hyperthread_ratio AS [Physical CPU Count], 
 physical_memory_in_bytes/1048576 AS [Physical Memory (MB)], 
-sqlserver_start_time, affinity_type_desc 
+sqlserver_start_time,
+DATEDIFF(hour, sqlserver_start_time, GETDATE()) AS [SQL Server Up Time (hrs)],
+affinity_type_desc 
 FROM sys.dm_os_sys_info WITH (NOLOCK) OPTION (RECOMPILE);
 ------
 
@@ -865,13 +867,15 @@ ORDER BY SUM(single_pages_kb) DESC OPTION (RECOMPILE);
 
 
 -- Find single-use, ad-hoc and prepared queries that are bloating the plan cache  (Query 39) (Ad hoc Queries)
-SELECT TOP(50) [text] AS [QueryText], cp.cacheobjtype, cp.objtype, cp.size_in_bytes/1024 AS [Plan Size in KB]
+SELECT TOP(50) DB_NAME(t.[dbid]) AS [Database Name], t.[text] AS [Query Text], 
+cp.objtype AS [Object Type], cp.cacheobjtype AS [Cache Object Type],  
+cp.size_in_bytes/1024 AS [Plan Size in KB]
 FROM sys.dm_exec_cached_plans AS cp WITH (NOLOCK)
-CROSS APPLY sys.dm_exec_sql_text(plan_handle) 
+CROSS APPLY sys.dm_exec_sql_text(plan_handle) AS t
 WHERE cp.cacheobjtype = N'Compiled Plan' 
 AND cp.objtype IN (N'Adhoc', N'Prepared') 
 AND cp.usecounts = 1
-ORDER BY cp.size_in_bytes DESC OPTION (RECOMPILE);
+ORDER BY cp.size_in_bytes DESC, DB_NAME(t.[dbid]) OPTION (RECOMPILE);
 ------
 
 -- Gives you the text, type and size of single-use ad-hoc and prepared queries that waste space in the plan cache
@@ -1355,7 +1359,6 @@ ORDER BY bs.backup_finish_date DESC OPTION (RECOMPILE);
 ------
 
 -- Are your backup sizes and times changing over time?
--- Are you using backup compression?
 -- Are you using backup checksums?
 -- Are you doing copy_only backups?
 -- Have you done any backup tuning with striped backups, or changing the parameters of the backup command?
@@ -1364,26 +1367,27 @@ ORDER BY bs.backup_finish_date DESC OPTION (RECOMPILE);
 -- These three Pluralsight Courses go into more detail about how to run these queries and interpret the results
 
 -- SQL Server 2014 DMV Diagnostic Queries – Part 1 
--- https://www.pluralsight.com/courses/sql-server-2014-dmv-diagnostic-queries-part1
+-- https://bit.ly/2plxCer
 
 -- SQL Server 2014 DMV Diagnostic Queries – Part 2
--- https://www.pluralsight.com/courses/sql-server-2014-dmv-diagnostic-queries-part2
+-- https://bit.ly/2IuJpzI
 
 -- SQL Server 2014 DMV Diagnostic Queries – Part 3
--- https://www.pluralsight.com/courses/sql-server-2014-dmv-diagnostic-queries-part3
+-- https://bit.ly/2FIlCPb
+
 
 
 -- Sign up for Microsoft Visual Studio Dev Essentials and get a free three month pass to Pluralsight
 
 -- Microsoft Visual Studio Dev Essentials
--- https://bit.ly/1q6xbDL
+-- http://bit.ly/1q6xbDL
 
 
--- Sign up for Microsoft IT Pro Cloud Essentials and get lots of free Azure usage credits, MCP exam voucher, three month Pluralsight subscription
+-- Sign up for Microsoft Azure Essentials and get lots of free Azure usage credits, MCP exam voucher, three month Pluralsight subscription
 
--- Microsoft IT Pro Cloud Essentials
--- https://bit.ly/2443SAd
+-- Microsoft Azure Essentials
+-- https://bit.ly/2JMWe8x
 
 
 -- August 2017 blog series about upgrading and migrating SQL Server
--- https://www.sqlskills.com/blogs/glenn/category/upgrading-sql-server/
+-- https://bit.ly/2ftKVrX
