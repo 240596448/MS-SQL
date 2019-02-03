@@ -1,7 +1,7 @@
 
 -- SQL Server 2017 Diagnostic Information Queries
 -- Glenn Berry 
--- Last Modified: November 11, 2018
+-- Last Modified: February 1, 2019
 -- https://www.sqlskills.com/blogs/glenn/
 -- http://sqlserverperformance.wordpress.com/
 -- Twitter: GlennAlanBerry
@@ -23,7 +23,7 @@
 
 
 --******************************************************************************
---*   Copyright (C) 2018 Glenn Berry, SQLskills.com
+--*   Copyright (C) 2019 Glenn Berry, SQLskills.com
 --*   All rights reserved. 
 --*
 --*   For more scripts and sample code, check out 
@@ -81,6 +81,7 @@ SELECT @@SERVERNAME AS [Server Name], @@VERSION AS [SQL Server and OS Version In
 -- 14.0.3037.1		CU10								8/27/2018		https://support.microsoft.com/en-us/help/4342123/cumulative-update-10-for-sql-server-2017
 -- 14.0.3038.14		CU11								9/20/2018		https://support.microsoft.com/en-us/help/4462262	
 -- 14.0.3045.24		CU12								10/23/2018		https://support.microsoft.com/en-us/help/4464082/cumulative-update-12-for-sql-server-2017
+-- 14.0.3048.4		CU13								12/18/2018		https://support.microsoft.com/en-us/help/4466404/cumulative-update-13-for-sql-server-2017		
 		
 															
 
@@ -202,6 +203,9 @@ DBCC TRACESTATUS (-1);
 -- It is very useful to know what global trace flags are currently enabled as part of the diagnostic process.
 
 -- Common trace flags that should be enabled in most cases
+-- TF 460  - Improvement: Optional replacement for "String or binary data would be truncated" message with extended information in SQL Server 2017
+--           https://bit.ly/2sboMli
+
 -- TF 3226 - Supresses logging of successful database backup messages to the SQL Server Error Log
 --           https://bit.ly/2p6MTjS  
 
@@ -217,8 +221,8 @@ DBCC TRACESTATUS (-1);
 -- DBCC TRACEON - Trace Flags (Transact-SQL)
 -- https://bit.ly/2FuSvPg
 
-
-
+-- Recommended updates and configuration options for SQL Server 2017 and 2016 with high-performance workloads
+-- https://bit.ly/2VVRGTY
 
 
 -- Returns status of instant file initialization (Query 6) (IFI Status)
@@ -513,6 +517,7 @@ EXEC sys.xp_instance_regread N'HKEY_LOCAL_MACHINE', N'SYSTEM\CurrentControlSet\s
 -- This is valid for VMware VMs
 -- Recommended value for intensive I/O patterns from VMware is: RequestRingPages=32,MaxQueueDepth=254
 -- https://kb.vmware.com/s/article/2053145
+-- Does not work on Linux
 
 
 
@@ -522,6 +527,7 @@ EXEC sys.xp_instance_regread N'HKEY_LOCAL_MACHINE', N'HARDWARE\DESCRIPTION\Syste
 
 -- Helps you understand whether the main system BIOS is up to date, and the possible age of the hardware
 -- Not as useful for virtualization
+-- Does not work on Linux
 
 
 -- Get processor description from Windows Registry  (Query 22) (Processor Description)
@@ -531,6 +537,7 @@ EXEC sys.xp_instance_regread N'HKEY_LOCAL_MACHINE', N'HARDWARE\DESCRIPTION\Syste
 -- Gives you the model number and rated clock speed of your processor(s)
 -- Your processors may be running at less than the rated clock speed due
 -- to the Windows Power Plan or hardware power management
+-- Does not work on Linux
 
 -- You can use CPU-Z to get your actual CPU core speed and a lot of other useful information
 -- https://bit.ly/QhR6xF
@@ -903,6 +910,7 @@ ORDER BY [CPU Rank] OPTION (RECOMPILE);
 ------
 
 -- Helps determine which database is using the most CPU resources on the instance
+-- Note: This only reflects CPU usage from the currently cached query plans
 
 
 -- Get I/O utilization by database (Query 39) (IO Usage By Database)
@@ -1390,17 +1398,17 @@ FROM sys.database_scoped_configurations WITH (NOLOCK) OPTION (RECOMPILE);
 
 -- I/O Statistics by file for the current database  (Query 59) (IO Stats By File)
 SELECT DB_NAME(DB_ID()) AS [Database Name], df.name AS [Logical Name], vfs.[file_id], df.type_desc,
-df.physical_name AS [Physical Name], CAST(vfs.size_on_disk_bytes/1048576.0 AS DECIMAL(10, 2)) AS [Size on Disk (MB)],
+df.physical_name AS [Physical Name], CAST(vfs.size_on_disk_bytes/1048576.0 AS DECIMAL(16, 2)) AS [Size on Disk (MB)],
 vfs.num_of_reads, vfs.num_of_writes, vfs.io_stall_read_ms, vfs.io_stall_write_ms,
-CAST(100. * vfs.io_stall_read_ms/(vfs.io_stall_read_ms + vfs.io_stall_write_ms) AS DECIMAL(10,1)) AS [IO Stall Reads Pct],
-CAST(100. * vfs.io_stall_write_ms/(vfs.io_stall_write_ms + vfs.io_stall_read_ms) AS DECIMAL(10,1)) AS [IO Stall Writes Pct],
+CAST(100. * vfs.io_stall_read_ms/(vfs.io_stall_read_ms + vfs.io_stall_write_ms) AS DECIMAL(16,1)) AS [IO Stall Reads Pct],
+CAST(100. * vfs.io_stall_write_ms/(vfs.io_stall_write_ms + vfs.io_stall_read_ms) AS DECIMAL(16,1)) AS [IO Stall Writes Pct],
 (vfs.num_of_reads + vfs.num_of_writes) AS [Writes + Reads], 
-CAST(vfs.num_of_bytes_read/1048576.0 AS DECIMAL(10, 2)) AS [MB Read], 
-CAST(vfs.num_of_bytes_written/1048576.0 AS DECIMAL(10, 2)) AS [MB Written],
-CAST(100. * vfs.num_of_reads/(vfs.num_of_reads + vfs.num_of_writes) AS DECIMAL(10,1)) AS [# Reads Pct],
-CAST(100. * vfs.num_of_writes/(vfs.num_of_reads + vfs.num_of_writes) AS DECIMAL(10,1)) AS [# Write Pct],
-CAST(100. * vfs.num_of_bytes_read/(vfs.num_of_bytes_read + vfs.num_of_bytes_written) AS DECIMAL(10,1)) AS [Read Bytes Pct],
-CAST(100. * vfs.num_of_bytes_written/(vfs.num_of_bytes_read + vfs.num_of_bytes_written) AS DECIMAL(10,1)) AS [Written Bytes Pct]
+CAST(vfs.num_of_bytes_read/1048576.0 AS DECIMAL(16, 2)) AS [MB Read], 
+CAST(vfs.num_of_bytes_written/1048576.0 AS DECIMAL(16, 2)) AS [MB Written],
+CAST(100. * vfs.num_of_reads/(vfs.num_of_reads + vfs.num_of_writes) AS DECIMAL(16,1)) AS [# Reads Pct],
+CAST(100. * vfs.num_of_writes/(vfs.num_of_reads + vfs.num_of_writes) AS DECIMAL(16,1)) AS [# Write Pct],
+CAST(100. * vfs.num_of_bytes_read/(vfs.num_of_bytes_read + vfs.num_of_bytes_written) AS DECIMAL(16,1)) AS [Read Bytes Pct],
+CAST(100. * vfs.num_of_bytes_written/(vfs.num_of_bytes_read + vfs.num_of_bytes_written) AS DECIMAL(16,1)) AS [Written Bytes Pct]
 FROM sys.dm_io_virtual_file_stats(DB_ID(), NULL) AS vfs
 INNER JOIN sys.database_files AS df WITH (NOLOCK)
 ON vfs.[file_id]= df.[file_id] OPTION (RECOMPILE);
@@ -1673,21 +1681,24 @@ ORDER BY [BufferCount] DESC OPTION (RECOMPILE);
 
 
 -- Get Table names, row counts, and compression status for clustered index or heap  (Query 72) (Table Sizes)
-SELECT OBJECT_NAME(object_id) AS [ObjectName], 
-SUM(Rows) AS [RowCount], data_compression_desc AS [CompressionType]
-FROM sys.partitions WITH (NOLOCK)
+SELECT SCHEMA_NAME(o.Schema_ID) AS [Schema Name], OBJECT_NAME(p.object_id) AS [ObjectName], 
+SUM(p.Rows) AS [RowCount], data_compression_desc AS [CompressionType]
+FROM sys.partitions AS p WITH (NOLOCK)
+INNER JOIN sys.objects AS o WITH (NOLOCK)
+ON p.object_id = o.object_id
 WHERE index_id < 2 --ignore the partitions from the non-clustered index if any
-AND OBJECT_NAME(object_id) NOT LIKE N'sys%'
-AND OBJECT_NAME(object_id) NOT LIKE N'queue_%' 
-AND OBJECT_NAME(object_id) NOT LIKE N'filestream_tombstone%' 
-AND OBJECT_NAME(object_id) NOT LIKE N'fulltext%'
-AND OBJECT_NAME(object_id) NOT LIKE N'ifts_comp_fragment%'
-AND OBJECT_NAME(object_id) NOT LIKE N'filetable_updates%'
-AND OBJECT_NAME(object_id) NOT LIKE N'xml_index_nodes%'
-AND OBJECT_NAME(object_id) NOT LIKE N'sqlagent_job%'  
-AND OBJECT_NAME(object_id) NOT LIKE N'plan_persist%'  
-GROUP BY object_id, data_compression_desc
-ORDER BY SUM(Rows) DESC OPTION (RECOMPILE);
+AND OBJECT_NAME(p.object_id) NOT LIKE N'sys%'
+AND OBJECT_NAME(p.object_id) NOT LIKE N'spt_%'
+AND OBJECT_NAME(p.object_id) NOT LIKE N'queue_%' 
+AND OBJECT_NAME(p.object_id) NOT LIKE N'filestream_tombstone%' 
+AND OBJECT_NAME(p.object_id) NOT LIKE N'fulltext%'
+AND OBJECT_NAME(p.object_id) NOT LIKE N'ifts_comp_fragment%'
+AND OBJECT_NAME(p.object_id) NOT LIKE N'filetable_updates%'
+AND OBJECT_NAME(p.object_id) NOT LIKE N'xml_index_nodes%'
+AND OBJECT_NAME(p.object_id) NOT LIKE N'sqlagent_job%'
+AND OBJECT_NAME(p.object_id) NOT LIKE N'plan_persist%'
+GROUP BY  SCHEMA_NAME(o.Schema_ID), p.object_id, data_compression_desc
+ORDER BY SUM(p.Rows) DESC OPTION (RECOMPILE);
 ------
 
 -- Gives you an idea of table sizes, and possible data compression opportunities
@@ -2082,10 +2093,14 @@ ORDER BY bs.backup_finish_date DESC OPTION (RECOMPILE);
 -- https://bit.ly/28Rpb2x
 
 
--- These four Pluralsight Courses go into more detail about how to run these queries and interpret the results
+-- These five Pluralsight Courses go into more detail about how to run these queries and interpret the results
+
+-- SQL Server 2017: Diagnosing Performance Issues with DMVs
+-- https://bit.ly/2FqCeti
 
 -- SQL Server 2017: Diagnosing Configuration Issues with DMVs
 -- https://bit.ly/2MSUDUL
+
 
 -- SQL Server 2014 DMV Diagnostic Queries – Part 1 
 -- https://bit.ly/2plxCer
